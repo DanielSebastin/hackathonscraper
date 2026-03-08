@@ -1,0 +1,9 @@
+﻿fastapi
+uvicorn[standard]
+playwright
+sentence-transformers
+qdrant-client
+pydantic
+apscheduler
+python-dotenv
+requests
