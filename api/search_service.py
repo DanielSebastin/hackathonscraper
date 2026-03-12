@@ -1,9 +1,9 @@
-﻿from models.embedding_model import get_embedding
-from database.qdrant_client import search_qdrant
+from models.embedding_model import get_embedding
+from database.qdrant_db import search_qdrant
 
 def process_search(query_text: str, limit: int):
     vector = get_embedding(query_text)
-    raw_results = search_qdrant(vector, limit)
+    raw_results = search_qdrant(vector, query_text, limit)
     
     formatted_data = []
     for hit in raw_results:
@@ -16,6 +16,7 @@ def process_search(query_text: str, limit: int):
             "location": payload.get("location"),
             "type": payload.get("type"),
             "registration_url": payload.get("registration_url"),
+            "visit_url": payload.get("visit_url"),
             "prize": payload.get("prize"),
             "fee": payload.get("fee"),
             "team_size": payload.get("team_size"),

@@ -1,90 +1,83 @@
-const API = "http://127.0.0.1:8000";
-const SAVE_KEY = "hf_saved";
+"use strict";
 
-/* ── Saved hackathons (localStorage) ───────────────────────── */
+const API = "http://127.0.0.1:8000";
+const SAVE_KEY = "hf_saved_v2";
+
+/* ═══════ LocalStorage helpers ════════════════════════════════ */
 function getSaved() {
   try { return JSON.parse(localStorage.getItem(SAVE_KEY) || "{}"); }
   catch { return {}; }
 }
-
-function saveHackathon(id, data) {
-  const saved = getSaved();
-  saved[id] = data;
-  localStorage.setItem(SAVE_KEY, JSON.stringify(saved));
-  updateSavedBadge();
+function saveItem(id, data) {
+  const s = getSaved(); s[id] = data;
+  localStorage.setItem(SAVE_KEY, JSON.stringify(s));
+  updateBadge();
 }
-
-function unsaveHackathon(id) {
-  const saved = getSaved();
-  delete saved[id];
-  localStorage.setItem(SAVE_KEY, JSON.stringify(saved));
-  updateSavedBadge();
+function unsaveItem(id) {
+  const s = getSaved(); delete s[id];
+  localStorage.setItem(SAVE_KEY, JSON.stringify(s));
+  updateBadge();
 }
+function isSaved(id) { return !!getSaved()[id]; }
+function cardId(r) { return (r.registration_url || r.title || Math.random().toString(36)).slice(0, 120); }
 
-function isSaved(id) {
-  return !!getSaved()[id];
-}
-
-function cardId(r) {
-  return r.registration_url || r.title || Math.random().toString(36);
-}
-
-function updateSavedBadge() {
+function updateBadge() {
   const badge = document.getElementById("savedBadge");
   if (!badge) return;
-  const count = Object.keys(getSaved()).length;
-  badge.textContent = count;
-  badge.style.display = count > 0 ? "flex" : "none";
+  const n = Object.keys(getSaved()).length;
+  badge.textContent = n;
+  badge.style.display = n > 0 ? "flex" : "none";
 }
 
-/* ── View toggle ────────────────────────────────────────────── */
-let currentView = "search"; // "search" | "saved"
+/* ═══════ Page routing ════════════════════════════════════════ */
+let currentPage = "home";
+let exploreState = {
+  results: [],
+  page: 1,
+  limit: 9,
+  total: 0
+};
 
-function showSearchView() {
-  currentView = "search";
-  document.getElementById("searchView").style.display = "";
-  document.getElementById("savedView").style.display = "none";
+function activatePage(id) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".nav-link").forEach(l => l.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function showHome() {
+  currentPage = "home";
+  activatePage("pageHome");
+  document.getElementById("navHome").classList.add("active");
+}
+
+function showSearch() {
+  currentPage = "search";
+  activatePage("pageSearch");
   document.getElementById("navSearch").classList.add("active");
-  document.getElementById("navSaved").classList.remove("active");
+  setTimeout(() => document.getElementById("searchInput").focus(), 100);
 }
 
-function showSavedView() {
-  currentView = "saved";
-  document.getElementById("searchView").style.display = "none";
-  document.getElementById("savedView").style.display = "";
-  document.getElementById("navSearch").classList.remove("active");
+function showSaved() {
+  currentPage = "saved";
+  activatePage("pageSaved");
   document.getElementById("navSaved").classList.add("active");
-  renderSavedList();
+  renderSaved();
 }
 
-function renderSavedList() {
-  const container = document.getElementById("savedResults");
-  const saved = getSaved();
-  const items = Object.entries(saved);
-
-  if (items.length === 0) {
-    container.innerHTML = `
-      <div class="state-msg">
-        ${svgBookmark("state-icon")}
-        <h3>No saved hackathons</h3>
-        <p>Hit the bookmark icon on any result to save it here.</p>
-      </div>`;
-    return;
-  }
-
-  container.innerHTML = "";
-  items.forEach(([id, r], i) => {
-    const card = buildCard(r, id, i);
-    container.appendChild(card);
-  });
+function showExplore() {
+  currentPage = "explore";
+  activatePage("pageExplore");
+  document.getElementById("navExplore").classList.add("active");
+  loadExplorePage(1);
 }
 
-/* ── Search ─────────────────────────────────────────────────── */
-async function doSearch(overrideText) {
+/* ═══════ Search ══════════════════════════════════════════════ */
+async function doSearch(override) {
   const input = document.getElementById("searchInput");
-  const query = (overrideText ?? input.value).trim();
-  if (!query) return;
-  if (overrideText) input.value = overrideText;
+  const query = (override ?? input.value).trim();
+  if (!query) { input.focus(); return; }
+  if (override !== undefined) input.value = override;
 
   showLoading();
 
@@ -92,10 +85,9 @@ async function doSearch(overrideText) {
     const res = await fetch(`${API}/search`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: query, limit: 10 }),
+      body: JSON.stringify({ text: query, limit: 9 }),
     });
-
-    if (!res.ok) throw new Error(`Server responded with status ${res.status}`);
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
     const data = await res.json();
     renderResults(data.results, query, data.llm_summary);
   } catch (err) {
@@ -103,37 +95,39 @@ async function doSearch(overrideText) {
   }
 }
 
-function chipSearch(el) {
-  showSearchView();
-  doSearch(el.textContent.trim());
-}
+function chipSearch(el) { showSearch(); doSearch(el.textContent.trim()); }
+function quickSearch(el) { showSearch(); doSearch(el.textContent.trim()); }
 
-/* ── Render results ─────────────────────────────────────────── */
+/* ═══════ Render results ══════════════════════════════════════ */
 function renderResults(results, query, llmSummary) {
-  const container = document.getElementById("results");
-  const statsBar = document.getElementById("statsBar");
+  const grid = document.getElementById("results");
+  const meta = document.getElementById("resultsMeta");
   const llmCard = document.getElementById("llmCard");
   const llmText = document.getElementById("llmText");
+  const emptyEl = document.getElementById("searchEmptyState");
 
-  container.innerHTML = "";
+  grid.innerHTML = "";
+  emptyEl.style.display = "none";
 
-  document.getElementById("resultCount").textContent = results.length;
-  document.getElementById("queryLabel").textContent = `"${query}"`;
-  statsBar.style.display = "flex";
-
+  // AI summary
   if (llmSummary) {
     llmText.textContent = llmSummary;
-    llmCard.classList.add("visible");
+    llmCard.style.display = "flex";
   } else {
-    llmCard.classList.remove("visible");
+    llmCard.style.display = "none";
   }
 
+  // Meta bar
+  document.getElementById("resultCount").textContent = results.length;
+  document.getElementById("queryLabel").innerHTML = `"${escHtml(query)}"`;
+  meta.style.display = results.length > 0 ? "block" : "none";
+
   if (results.length === 0) {
-    container.innerHTML = `
-      <div class="state-msg">
-        ${svgSearch("state-icon")}
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
         <h3>No results found</h3>
-        <p>No hackathons matched your query.<br>Try a broader or different search term.</p>
+        <p>Try a different term, or broaden your search.</p>
       </div>`;
     return;
   }
@@ -141,76 +135,107 @@ function renderResults(results, query, llmSummary) {
   results.forEach((r, i) => {
     const id = cardId(r);
     const card = buildCard(r, id, i);
-    container.appendChild(card);
+    grid.appendChild(card);
   });
 }
 
-/* ── Card builder (shared) ──────────────────────────────────── */
+/* ═══════ Saved page ══════════════════════════════════════════ */
+function renderSaved() {
+  const grid = document.getElementById("savedResults");
+  const emptyEl = document.getElementById("savedEmptyState");
+  const items = Object.entries(getSaved());
+
+  grid.innerHTML = "";
+  if (items.length === 0) {
+    emptyEl.style.display = "";
+    return;
+  }
+  emptyEl.style.display = "none";
+  items.forEach(([id, r], i) => grid.appendChild(buildCard(r, id, i)));
+}
+
+/* ═══════ Prize value extractor ══════════════════════════════ */
+function parsePrize(raw) {
+  if (!raw) return null;
+  // Match currency symbols followed by digits (e.g. ₹1,00,000 / $5000 / INR 50000)
+  const match = String(raw).match(/([₹$€£]\s?[\d,]+(?:\.\d+)?(?:\s?(?:lakh|lakhs|L|k|K|crore|cr))?|INR\s?[\d,]+(?:\.\d+)?|\b\d[\d,]*(?:\.\d+)?(?:\s?(?:lakh|lakhs|L|k|K|crore|cr)))/i);
+  return match ? match[0].trim() : null;
+}
+
+/* ═══════ Card builder ════════════════════════════════════════ */
 function buildCard(r, id, i = 0) {
   const card = document.createElement("div");
   card.className = "card";
-  card.style.animationDelay = `${i * 0.04}s`;
+  card.style.animationDelay = `${i * 0.05}s`;
   card.dataset.cardId = id;
 
-  const scorePercent = Math.round((r.score || 0) * 100);
-  const scoreHtml = r.score != null ? `<span class="score-pill">${scorePercent}%</span>` : "";
   const saved = isSaved(id);
 
+  // SVG icons (inline, keeps things fast)
+  const icoCalendar = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
+  const icoPin = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>`;
+
+  const date = r.date ? `<div class="meta-row">${icoCalendar} ${escHtml(r.date)}</div>` : "";
+  const location = r.location ? `<div class="meta-row">${icoPin} ${escHtml(r.location)}</div>` : "";
+
+  const prizeVal = parsePrize(r.prize);
+  const prizeDisplay = prizeVal ? escHtml(prizeVal) : "Not specified";
+  const prizeBadge = `<span class="info-tag prize">🏆 ${prizeDisplay}</span>`;
+  // Normalize fee text
+  let feeText = "Refer website";
+  if (r.fee && r.fee !== "Null" && String(r.fee).trim() !== "") {
+    feeText = escHtml(r.fee);
+  }
+  const feeBadge = `<span class="info-tag fee">💳 ${feeText}</span>`;
+
+  // Domains - filter out Knowafest and render it as a corner badge
+  const domainsRaw = Array.isArray(r.domains) ? r.domains : [];
+  const isKnowafest = domainsRaw.includes("Knowafest");
+  const domains = domainsRaw.filter(d => d !== "Knowafest");
+  
+  let domainBadges = "";
+  if (domains.length > 0) {
+    domainBadges = domains.map((d, idx) => {
+      const isExtra = idx >= 3;
+      return `<span class="info-tag domain ${isExtra ? "hidden" : ""}">${escHtml(d)}</span>`;
+    }).join("");
+    
+    if (domains.length > 3) {
+      domainBadges += `<button class="more-tags" onclick="expandTags(this)">+${domains.length - 3} more</button>`;
+    }
+  }
+
+  const knowafestBadge = isKnowafest ? `<div class="source-badge">Knowafest</div>` : "";
+
   const regBtn = r.registration_url
-    ? `<a class="reg-btn" href="${r.registration_url}" target="_blank" rel="noopener noreferrer">Register</a>`
+    ? `<a class="reg-btn" href="${escAttr(r.registration_url)}" target="_blank" rel="noopener noreferrer" aria-label="Register for ${escAttr(r.title || '')}">Register →</a>`
     : `<span class="reg-btn disabled">No link</span>`;
 
-  // Format Dates
-  const startDate = r.date || "TBD";
-  const endDate = r.end_date ? ` – ${r.end_date}` : "";
-  const fullDate = `${startDate}${endDate}`;
-
-  const hasDomains = r.domains && r.domains.length > 0;
-  const hasPS = r.problem_statements && r.problem_statements.length > 0;
-
-  const domainStr = hasDomains ? r.domains.join(", ") : "";
-  const psStr = hasPS ? r.problem_statements.join("\\n") : "";
-
-  const deadline = r.registration_deadline ? `<span class="meta-item hl">${svgClock()}Apply by ${escHtml(r.registration_deadline)}</span>` : "";
-
-  // Event info formatting
-  const PREVIEW_LEN = 220;
-  const cleanDesc = cleanText(r.description || "");
-  const isLong = cleanDesc.length > PREVIEW_LEN;
-  const previewDesc = isLong ? cleanDesc.slice(0, PREVIEW_LEN).trimEnd() + "…" : cleanDesc;
-
-  const eventInfoHtml = `
-    <div class="card-desc" data-full="${escAttr(cleanDesc)}" data-expanded="false">
-      <strong>Event Info:</strong><br><br>
-      <span class="desc-text desc-preview">${escHtml(previewDesc)}</span>
-      ${hasDomains ? `<br><br><strong>Domain:</strong> ${escHtml(domainStr)}` : ""}
-      ${hasPS ? `<br><br><strong>Problem Statements:</strong><br><span class="desc-text">${escHtml(cleanText(psStr))}</span>` : ""}
-    </div>
-    ${isLong ? `<button class="expand-btn" onclick="toggleExpand(event)">Show more</button>` : ""}
-  `;
+  const visitBtn = r.visit_url
+    ? `<a class="reg-btn alt-btn" href="${escAttr(r.visit_url)}" target="_blank" rel="noopener noreferrer" aria-label="Visit site for ${escAttr(r.title || '')}">Visit Site ↗</a>`
+    : ``;
 
   card.innerHTML = `
-    <div class="card-header">
-      <div class="card-title">${escHtml(r.title || "Untitled")}</div>
-      ${scoreHtml}
-    </div>
+    ${knowafestBadge}
+    <div class="card-title">${escHtml(r.title || "Untitled Hackathon")}</div>
     <div class="card-meta">
-      ${deadline}
-      <span class="meta-item">${svgCalendar()}${escHtml(fullDate)}</span>
-      <span class="meta-item">${svgPin()}${escHtml(r.location || "Location TBD")}</span>
-      ${r.team_size ? `<span class="meta-item">${svgUsers()}${escHtml(r.team_size)}</span>` : ""}
+      ${date}
+      ${location}
     </div>
-    ${eventInfoHtml}
+    <div class="info-tags">
+      ${prizeBadge}
+      ${feeBadge}
+      ${domainBadges}
+    </div>
     <div class="card-footer">
-      <div class="footer-left">
-        <span class="type-badge">${escHtml(r.type || "Hackathon")}</span>
-      </div>
-      <div class="footer-right">
-        <button
-          class="save-later-btn ${saved ? "saved" : ""}"
-          onclick="toggleSave(event, '${escAttr(id)}')"
-          aria-label="${saved ? "Remove from saved" : "Save for later"}"
-        >${saved ? "Saved" : "Save for later"}</button>
+      <button
+        class="save-btn ${saved ? "saved" : ""}"
+        onclick="toggleSave(event,'${escAttr(id)}')"
+        aria-label="${saved ? "Remove from saved" : "Save hackathon"}"
+        title="${saved ? "Remove from saved" : "Save for later"}"
+      >${saved ? "−" : "+"}</button>
+      <div style="display: flex; gap: 8px; margin-left: auto;">
+        ${visitBtn}
         ${regBtn}
       </div>
     </div>`;
@@ -218,151 +243,161 @@ function buildCard(r, id, i = 0) {
   return card;
 }
 
-/* ── Expand / collapse ──────────────────────────────────────── */
-function toggleExpand(event) {
-  event.stopPropagation();
-  const btn = event.currentTarget;
-  const desc = btn.previousElementSibling; // .card-desc
-  const preview = desc.querySelector(".desc-preview");
-  const isExpanded = desc.dataset.expanded === "true";
-
-  if (isExpanded) {
-    const full = desc.dataset.full || "";
-    preview.textContent = full.slice(0, 220).trimEnd() + "…";
-    desc.dataset.expanded = "false";
-    btn.textContent = "Show more";
-  } else {
-    preview.textContent = desc.dataset.full || "";
-    desc.dataset.expanded = "true";
-    btn.textContent = "Show less";
-  }
-}
-
-function togglePS(event) {
-  event.stopPropagation();
-  const header = event.currentTarget;
-  const list = header.nextElementSibling;
-  const arrow = header.querySelector(".ps-arrow");
-
-  const isExpanded = list.style.display === "block";
-  list.style.display = isExpanded ? "none" : "block";
-  arrow.style.transform = isExpanded ? "rotate(0deg)" : "rotate(180deg)";
-}
-
-/* ── Toggle save ────────────────────────────────────────────── */
+/* ═══════ Toggle save ═════════════════════════════════════════ */
 function toggleSave(event, id) {
   event.stopPropagation();
-
   const card = event.currentTarget.closest(".card");
-  const title = card.querySelector(".card-title")?.textContent || "";
-  const metaItems = card.querySelectorAll(".meta-item");
-  const date = metaItems[0]?.textContent.trim() || "";
-  const location = metaItems[1]?.textContent.trim() || "";
-  const desc = card.querySelector(".card-desc")?.textContent || "";
-  const type = card.querySelector(".type-badge")?.textContent || "";
-  const regLink = card.querySelector("a.reg-btn")?.href || null;
-
   const btn = event.currentTarget;
 
   if (isSaved(id)) {
-    unsaveHackathon(id);
+    unsaveItem(id);
     btn.classList.remove("saved");
-    btn.textContent = "Save for later";
-    btn.ariaLabel = "Save for later";
-    if (currentView === "saved") card.remove();
-    if (currentView === "saved" && !document.querySelector("#savedResults .card")) renderSavedList();
+    btn.textContent = "+";
+    btn.setAttribute("aria-label", "Save hackathon");
+    btn.title = "Save for later";
+    if (currentPage === "saved") {
+      card.style.transition = "opacity .25s, transform .25s";
+      card.style.opacity = "0";
+      card.style.transform = "scale(.95)";
+      setTimeout(() => {
+        card.remove();
+        if (!document.querySelector("#savedResults .card")) renderSaved();
+      }, 260);
+    }
   } else {
-    saveHackathon(id, { title, date, location, description: desc, type, registration_url: regLink });
+    // Collect data directly from the card DOM (safe)
+    const r = {
+      title: card.querySelector(".card-title")?.textContent || "",
+      date: card.querySelectorAll(".meta-row")[0]?.textContent.trim() || "",
+      location: card.querySelectorAll(".meta-row")[1]?.textContent.trim() || "",
+      prize: card.querySelector(".info-tag.prize")?.textContent.replace("🏆 ", "") || null,
+      fee: card.querySelector(".info-tag.fee")?.textContent.replace("💳 ", "") || null,
+      domains: Array.from(card.querySelectorAll(".info-tag.domain")).map(el => el.textContent),
+      registration_url: card.querySelector("a.reg-btn:not(.alt-btn)")?.href || null,
+      visit_url: card.querySelector("a.alt-btn")?.href || null,
+    };
+    saveItem(id, r);
     btn.classList.add("saved");
-    btn.textContent = "Saved";
-    btn.ariaLabel = "Remove from saved";
+    btn.textContent = "−";
+    btn.setAttribute("aria-label", "Remove from saved");
+    btn.title = "Remove from saved";
   }
 }
 
-/* ── States ─────────────────────────────────────────────────── */
+function expandTags(btn) {
+  const container = btn.parentElement;
+  container.querySelectorAll(".info-tag.domain.hidden").forEach(el => el.classList.remove("hidden"));
+  btn.remove();
+}
+
+/* ═══════ Explore Page ════════════════════════════════════════ */
+async function loadExplorePage(page) {
+  const grid = document.getElementById("exploreResults");
+  const emptyEl = document.getElementById("exploreEmptyState");
+  
+  grid.innerHTML = Array(6).fill(`
+    <div class="skeleton">
+      <div class="skel-line wide"></div>
+      <div class="skel-line mid"></div>
+      <div class="skel-line short" style="margin-top:6px"></div>
+    </div>`).join("");
+  emptyEl.style.display = "none";
+
+  try {
+    const res = await fetch(`${API}/explore?page=${page}&limit=${exploreState.limit}`);
+    if (!res.ok) throw new Error("Failed to load events");
+    const data = await res.json();
+    
+    exploreState.results = data.results;
+    exploreState.total = data.total;
+    exploreState.page = data.page;
+    
+    renderExplore();
+  } catch (err) {
+    grid.innerHTML = "";
+    emptyEl.style.display = "block";
+  }
+}
+
+function renderExplore() {
+  const grid = document.getElementById("exploreResults");
+  grid.innerHTML = "";
+  
+  if (exploreState.results.length === 0) {
+    document.getElementById("exploreEmptyState").style.display = "block";
+    return;
+  }
+
+  exploreState.results.forEach((r, i) => {
+    grid.appendChild(buildCard(r, cardId(r), i));
+  });
+
+  document.getElementById("exploreMeta").textContent = `Showing ${exploreState.total} hackathons total`;
+
+  updatePagination();
+}
+
+function updatePagination() {
+  const pageNumbers = document.getElementById("pageNumbers");
+  const prevBtn = document.getElementById("prevBtn");
+  const nextBtn = document.getElementById("nextBtn");
+  
+  const totalPages = Math.ceil(exploreState.total / exploreState.limit);
+  
+  prevBtn.disabled = exploreState.page <= 1;
+  nextBtn.disabled = exploreState.page >= totalPages;
+
+  pageNumbers.innerHTML = "";
+  
+  // Show all pages if small, or a range if large
+  // For now, let's just show all as the user specifically mentioned 4 pages
+  for (let i = 1; i <= totalPages; i++) {
+    const btn = document.createElement("button");
+    btn.className = `page-num ${i === exploreState.page ? "active" : ""}`;
+    btn.textContent = i;
+    btn.onclick = () => goToPage(i);
+    pageNumbers.appendChild(btn);
+  }
+}
+
+function goToPage(n) {
+  loadExplorePage(n);
+}
+
+function nextPage() {
+  loadExplorePage(exploreState.page + 1);
+}
+
+function prevPage() {
+  loadExplorePage(exploreState.page - 1);
+}
+
+/* ═══════ States ══════════════════════════════════════════════ */
 function showLoading() {
-  document.getElementById("statsBar").style.display = "none";
-  document.getElementById("llmCard").classList.remove("visible");
+  document.getElementById("resultsMeta").style.display = "none";
+  document.getElementById("llmCard").style.display = "none";
+  document.getElementById("searchEmptyState").style.display = "none";
   document.getElementById("results").innerHTML = Array(6).fill(`
     <div class="skeleton">
-      <div class="skel-line" style="width:60%;height:14px"></div>
-      <div class="skel-line" style="width:40%"></div>
-      <div class="skel-line" style="width:90%;margin-top:4px"></div>
-      <div class="skel-line" style="width:70%"></div>
+      <div class="skel-line wide"></div>
+      <div class="skel-line mid"></div>
+      <div class="skel-line short" style="margin-top:6px"></div>
+      <div class="skel-line mid" style="margin-top:2px"></div>
     </div>`).join("");
 }
 
 function showError(msg) {
-  document.getElementById("statsBar").style.display = "none";
+  document.getElementById("resultsMeta").style.display = "none";
   document.getElementById("results").innerHTML = `
-    <div class="state-msg">
-      ${svgError("state-icon")}
+    <div class="empty-state" style="grid-column:1/-1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
       <h3>Connection failed</h3>
-      <p>Could not reach the API. Make sure the server is running.
-        <span class="error-detail">${escHtml(msg)}</span>
-      </p>
+      <p>Could not reach the API — make sure the server is running.<br/>
+         <small style="opacity:.6">${escHtml(msg)}</small></p>
     </div>`;
 }
 
-/* ── SVG Icons ──────────────────────────────────────────────── */
-function svgCalendar() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
-  </svg>`;
-}
-function svgPin() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
-    <circle cx="12" cy="9" r="2.5"/>
-  </svg>`;
-}
-function svgUsers() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-  </svg>`;
-}
-function svgClock() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>
-  </svg>`;
-}
-function svgTrophy() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><circle cx="12" cy="9" r="6"></circle>
-  </svg>`;
-}
-function svgList() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>
-  </svg>`;
-}
-function svgSearch(cls = "") {
-  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-    <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-  </svg>`;
-}
-function svgError(cls = "") {
-  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-    <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
-  </svg>`;
-}
-function svgBookmark(cls = "") {
-  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
-  </svg>`;
-}
-function svgBookmarkOutline() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
-  </svg>`;
-}
-function svgBookmarkFilled() {
-  return `<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2">
-    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
-  </svg>`;
-}
-
-/* ── Utils ──────────────────────────────────────────────────── */
+/* ═══════ Utils ═══════════════════════════════════════════════ */
 function escHtml(str) {
   return String(str)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -372,23 +407,23 @@ function escAttr(str) {
   return String(str).replace(/'/g, "\\'").replace(/"/g, "&quot;");
 }
 
-/**
- * Strips emojis and cleans up raw scraped text into readable prose.
- * Collapses multiple newlines/whitespace into single spaces.
- */
-function cleanText(str) {
-  return String(str)
-    // remove emoji
-    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F000}-\u{1FFFF}]/gu, "")
-    // collapse any mix of newlines/tabs/multiple spaces to a single space
-    .replace(/[\r\n\t]+/g, " ")
-    .replace(/ {2,}/g, " ")
-    .trim();
+/* ═══════ Theme Toggle ════════════════════════════════════════ */
+const THEME_KEY = "hf_theme";
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute("data-theme");
+  const next = current === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem(THEME_KEY, next);
 }
 
-/* ── Init ───────────────────────────────────────────────────── */
-document.getElementById("searchInput").addEventListener("keydown", e => {
-  if (e.key === "Enter") doSearch();
-});
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const theme = saved || (prefersDark ? "dark" : "light");
+  document.documentElement.setAttribute("data-theme", theme);
+}
 
-updateSavedBadge();
+/* ═══════ Init ════════════════════════════════════════════════ */
+initTheme();
+updateBadge();

@@ -4,134 +4,292 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hackathon Agent</title>
+    <title>HackFinder — Discover Hackathons</title>
     <meta name="description"
         content="Discover the most relevant hackathons for you using AI-powered semantic search." />
-    <link rel="icon" href="icon.png" />
+    <link rel="icon" href="headericon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
         rel="stylesheet" />
-    <link rel="stylesheet" href="style.css?v=3" />
+    <link rel="stylesheet" href="style.css?v=10" />
 </head>
 
 <body>
 
-    <!-- ── Sidebar ─────────────────────────────────────────────── -->
-    <aside class="sidebar" aria-label="Navigation">
-
-        <!-- Logo mark -->
-        <div class="sidebar-logo" aria-label="Hackathon Agent">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-            </svg>
-        </div>
-
-        <!-- Search -->
-        <button id="navSearch" class="nav-icon active" title="Search" aria-label="Search" onclick="showSearchView()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8" />
-                <path d="M21 21l-4.35-4.35" />
-            </svg>
-        </button>
-
-        <!-- Saved -->
-        <button id="navSaved" class="nav-icon" title="Saved" aria-label="Saved hackathons" onclick="showSavedView()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-            </svg>
-            <span id="savedBadge" class="nav-badge" style="display:none" aria-label="Saved count">0</span>
-        </button>
-
-        <div class="sidebar-spacer"></div>
-
-        <button class="nav-icon" title="Settings" aria-label="Settings">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="3" />
-                <path
-                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-        </button>
-
-    </aside>
-
-    <!-- ── Main ────────────────────────────────────────────────── -->
-    <main class="main">
-
-        <!-- Topbar -->
-        <div class="topbar">
-            <div class="topbar-left">
-                <h1>Hackathon Agent</h1>
-                <p>Find events by topic, theme, or location using natural language</p>
-            </div>
-            <div class="topbar-right">
-                <div class="status-dot">
-                    <span class="dot" aria-hidden="true"></span>
-                    API live
+    <!-- ── Top Navigation Bar ─────────────────────────────────── -->
+    <nav class="navbar" role="navigation" aria-label="Main navigation">
+        <div class="nav-container">
+            <div class="nav-brand" onclick="showHome()" role="button" tabindex="0" aria-label="HackFinder home"
+                onkeydown="if(event.key==='Enter')showHome()">
+                <div class="brand-icon" aria-hidden="true">
+                    <img src="icon.png" alt="HackFinder Logo"
+                        style="width: 100%; height: 100%; object-fit: contain; border-radius: 10px;" />
                 </div>
+                <span class="brand-name">HackFinder</span>
+            </div>
+
+            <div class="nav-links" role="list">
+                <button id="navHome" class="nav-link active" onclick="showHome()" role="listitem" aria-label="Home">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" aria-hidden="true">
+                        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9.5z" />
+                        <path d="M9 21V12h6v9" />
+                    </svg>
+                    Home
+                </button>
+                <button id="navSearch" class="nav-link" onclick="showSearch()" role="listitem" aria-label="Search">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="8" />
+                        <path d="M21 21l-4.35-4.35" />
+                    </svg>
+                    Search
+                </button>
+                <button id="navExplore" class="nav-link" onclick="showExplore()" role="listitem" aria-label="Explore Hackathons">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" aria-hidden="true">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                        <line x1="12" y1="22.08" x2="12" y2="12" />
+                    </svg>
+                    Hackathons
+                </button>
+                <button id="navSaved" class="nav-link" onclick="showSaved()" role="listitem"
+                    aria-label="Saved hackathons">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" aria-hidden="true">
+                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                    </svg>
+                    Saved
+                    <span id="savedBadge" class="badge" style="display:none" aria-label="Saved count">0</span>
+                </button>
+                <button id="themeToggle" class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode">
+                    <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                    <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                </button>
             </div>
         </div>
+    </nav>
 
-        <!-- Content -->
-        <div class="content">
+    <!-- ── Pages ─────────────────────────────────────────────── -->
+    <main class="page-wrap">
 
-            <!-- ── Search view ── -->
-            <div id="searchView">
-
-                <div class="search-row" role="search">
-                    <div class="search-wrap">
-                        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            aria-hidden="true">
-                            <circle cx="11" cy="11" r="8" />
-                            <path d="M21 21l-4.35-4.35" />
-                        </svg>
-                        <input id="searchInput" type="search"
-                            placeholder='e.g. "AI hackathon in Chennai" or "hardware design competition"'
-                            autocomplete="off" aria-label="Search hackathons" />
+        <!-- ════ HOME PAGE ════ -->
+        <div id="pageHome" class="page active">
+            <section class="hero">
+                <div class="hero-content">
+                    <h1 class="hero-title">
+                        Find Your Next<br />
+                        <span class="hero-gradient">Hackathon</span>
+                    </h1>
+                    <p class="hero-sub">
+                        Explore hundreds of hackathons across India — filtered by theme, location, and prize pool — all
+                        powered by semantic AI search.
+                    </p>
+                    <div class="hero-actions">
+                        <button class="btn-primary" onclick="showSearch()" aria-label="Start searching hackathons">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                aria-hidden="true">
+                                <circle cx="11" cy="11" r="8" />
+                                <path d="M21 21l-4.35-4.35" />
+                            </svg>
+                            Start Exploring
+                        </button>
+                        <button class="btn-outline" onclick="showSaved()" aria-label="View saved hackathons">View
+                            Saved</button>
                     </div>
-                    <button id="searchBtn" onclick="doSearch()" aria-label="Run search">Search</button>
                 </div>
+                <div class="hero-graphic" aria-hidden="true">
+                    <img src="trophy.jpg" alt="Trophy" class="trophy-img" />
+                    <div class="trophy-line"></div>
+                </div>
+            </section>
 
+            <!-- Stats strip -->
+            <section class="stats-strip">
+                <div class="stats-inner">
+                    <div class="stat-item">
+                        <div class="stat-num">100+</div>
+                        <div class="stat-label">Hackathons Listed</div>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <div class="stat-num">AI</div>
+                        <div class="stat-label">Semantic Search</div>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <div class="stat-num">Free</div>
+                        <div class="stat-label">Always & Forever</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Feature cards -->
+            <section class="features">
+                <h2 class="section-title">Why HackFinder?</h2>
+                <div class="features-grid">
+                    <div class="feat-card">
+                        <div class="feat-icon" style="background:#ede9fe;color:#7c3aed">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8" />
+                                <path d="M21 21l-4.35-4.35" />
+                            </svg>
+                        </div>
+                        <h3>Smart Search</h3>
+                        <p>Natural language queries understood by AI — just describe what you're looking for.</p>
+                    </div>
+                    <div class="feat-card">
+                        <div class="feat-icon" style="background:#fef3c7;color:#d97706">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path
+                                    d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                            </svg>
+                        </div>
+                        <h3>Curated & Fresh</h3>
+                        <p>Events are scraped and updated regularly so you never miss a deadline.</p>
+                    </div>
+                    <div class="feat-card">
+                        <div class="feat-icon" style="background:#dcfce7;color:#16a34a">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                            </svg>
+                        </div>
+                        <h3>Save for Later</h3>
+                        <p>Bookmark hackathons you love and revisit them whenever you're ready.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Quick search chips on home -->
+            <section class="quick-search">
+                <h2 class="section-title">Popular Topics</h2>
+                <div class="chips" role="list" aria-label="Popular search topics">
+                    <span class="chip" role="listitem" onclick="quickSearch(this)">AI &amp; Machine Learning</span>
+                    <span class="chip" role="listitem" onclick="quickSearch(this)">Web Development</span>
+                    <span class="chip" role="listitem" onclick="quickSearch(this)">Hardware Hackathon</span>
+                    <span class="chip" role="listitem" onclick="quickSearch(this)">Healthcare Technology</span>
+                    <span class="chip" role="listitem" onclick="quickSearch(this)">Ideathon 2026</span>
+                </div>
+            </section>
+        </div>
+
+        <!-- ════ SEARCH PAGE ════ -->
+        <div id="pageSearch" class="page">
+            <div class="search-page-header">
+                <h1 class="search-page-title">Search Hackathons</h1>
+                <p class="search-page-sub">Use natural language — describe what you're looking for</p>
+            </div>
+
+            <div class="search-bar-wrap" role="search">
+                <div class="search-input-group">
+                    <svg class="search-bar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        aria-hidden="true">
+                        <circle cx="11" cy="11" r="8" />
+                        <path d="M21 21l-4.35-4.35" />
+                    </svg>
+                    <input id="searchInput" type="search"
+                        placeholder='e.g. "AI hackathon in Chennai" or "hardware design competition free entry"'
+                        autocomplete="off" aria-label="Search hackathons"
+                        onkeydown="if(event.key==='Enter')doSearch()" />
+                    <button id="searchBtn" class="search-run-btn" onclick="doSearch()"
+                        aria-label="Search">Search</button>
+                </div>
                 <div class="chips" id="chips" role="list" aria-label="Quick search suggestions">
-                    <span class="chip" role="listitem" onclick="chipSearch(this)">AI and Machine Learning</span>
-                    <span class="chip" role="listitem" onclick="chipSearch(this)">Web Development</span>
-                    <span class="chip" role="listitem" onclick="chipSearch(this)">Hardware Hackathon</span>
-                    <span class="chip" role="listitem" onclick="chipSearch(this)">Ideathon 2026</span>
-                    <span class="chip" role="listitem" onclick="chipSearch(this)">Healthcare Technology</span>
-                    <span class="chip" role="listitem" onclick="chipSearch(this)">Cybersecurity</span>
+                    <span class="chip" role="listitem" onclick="chipSearch(this)">AI &amp; ML</span>
+                    <span class="chip" role="listitem" onclick="chipSearch(this)">Web Dev</span>
+                    <span class="chip" role="listitem" onclick="chipSearch(this)">Hardware</span>
+                    <span class="chip" role="listitem" onclick="chipSearch(this)">Healthcare</span>
                 </div>
-
-                <div class="llm-card" id="llmCard" aria-live="polite">
-                    <div class="llm-label">
-                        <svg width="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                            aria-hidden="true">
-                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                        </svg>
-                        AI Summary
-                    </div>
-                    <p class="llm-text" id="llmText"></p>
-                </div>
-
-                <div class="stats-bar" id="statsBar" style="display:none" aria-live="polite">
-                    <span>Found <span class="count" id="resultCount">0</span> results</span>
-                    <span class="sep">·</span>
-                    <span id="queryLabel"></span>
-                </div>
-
-                <div class="results-grid" id="results" role="region" aria-label="Search results"></div>
             </div>
 
-            <!-- ── Saved view ── -->
-            <div id="savedView" style="display:none">
-                <div class="stats-bar" style="margin-bottom:20px">
-                    <span class="count">Saved Hackathons</span>
+            <!-- AI Summary -->
+            <div class="ai-summary" id="llmCard" style="display:none" aria-live="polite">
+                <div class="ai-summary-label">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                    </svg>
+                    AI Summary
                 </div>
-                <div class="results-grid" id="savedResults" role="region" aria-label="Saved hackathons"></div>
+                <p id="llmText"></p>
             </div>
 
+            <!-- Stats row -->
+            <div class="results-meta" id="resultsMeta" style="display:none" aria-live="polite">
+                <span>Showing <strong id="resultCount">0</strong> results for <em id="queryLabel"></em></span>
+            </div>
+
+            <!-- Results -->
+            <div class="results-grid" id="results" role="region" aria-label="Search results"></div>
+
+            <!-- Empty / initial state -->
+            <div class="empty-state" id="searchEmptyState">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.35-4.35" />
+                </svg>
+                <h3>Start your search</h3>
+                <p>Type a topic, location, or theme above and hit Search.</p>
+            </div>
         </div>
+        
+        <!-- ════ EXPLORE PAGE ════ -->
+        <div id="pageExplore" class="page">
+            <div class="search-page-header">
+                <h1 class="search-page-title">Explore Hackathons</h1>
+                <p class="search-page-sub">Browse all events, shuffled every time</p>
+                <p id="exploreMeta" class="search-page-sub" style="font-weight:600; color:var(--brand);"></p>
+            </div>
+
+            <div class="results-grid" id="exploreResults" role="region" aria-label="Explore hackathons"></div>
+            
+            <div class="pagination" id="pagination">
+                <button id="prevBtn" class="pagination-btn" onclick="prevPage()" disabled aria-label="Previous page">←</button>
+                <div id="pageNumbers" class="page-numbers"></div>
+                <button id="nextBtn" class="pagination-btn" onclick="nextPage()" aria-label="Next page">→</button>
+            </div>
+
+            <div class="empty-state" id="exploreEmptyState" style="display:none">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+                    <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
+                </svg>
+                <h3>No hackathons found</h3>
+                <p>Check back later or try reaching the API.</p>
+            </div>
+        </div>
+
+        <!-- ════ SAVED PAGE ════ -->
+        <div id="pageSaved" class="page">
+            <div class="search-page-header">
+                <h1 class="search-page-title">Saved Hackathons</h1>
+                <p class="search-page-sub">Your personal shortlist — ready whenever you are</p>
+            </div>
+            <div class="results-grid" id="savedResults" role="region" aria-label="Saved hackathons"></div>
+            <div class="empty-state" id="savedEmptyState" style="display:none">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                </svg>
+                <h3>Nothing saved yet</h3>
+                <p>Hit the <strong>+</strong> button on any hackathon card to save it here.</p>
+            </div>
+        </div>
+
     </main>
 
-    <script src="app.js?v=3"></script>
+    <script src="app.js?v=10"></script>
 </body>
 
 </html>

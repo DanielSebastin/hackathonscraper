@@ -53,6 +53,7 @@ def scrape_knowafest():
                         "type": fest_type,
                         "location": location,
                         "registration_url": None, 
+                        "visit_url": None,
                         "description": "" # This will hold the massive details payload
                     }
                     
@@ -66,6 +67,8 @@ def scrape_knowafest():
                         new_page.wait_for_load_state("domcontentloaded")
                         time.sleep(1)
                         
+                        event_data["visit_url"] = new_page.url
+                        
                         # 1. Hunt the Registration Link
                         reg_btn = new_page.locator("a", has_text=re.compile(r"Register|Website", re.IGNORECASE)).first
                         if reg_btn.count() > 0:
@@ -74,33 +77,38 @@ def scrape_knowafest():
                                 event_data["registration_url"] = href
                                 print(f"     [+] Reg Link: {href}")
 
-                        # 2. THE DETAIL EXTRACTOR (Dates, Fees, About, etc.)
-                        # Grab all headings, paragraphs, and list items
-                        raw_texts = new_page.locator("h2, h3, h4, h5, p, li").all_inner_texts()
-                        
-                        clean_texts = []
-                        # Junk words we want to ignore from the sidebar/navbar
-                        junk_filters = [
-                            "India’s Largest", "Login", "Create Event", "Register now", 
-                            "View Event", "Website", "Poster", "Location ->", "Map", 
-                            "Email ->", "Join WhatsApp", "Group", "Event Type:", "Start Date :"
-                        ]
+                        # 2. TARGETED DETAIL EXTRACTOR — Registration Fee & Team Size only
+                        page_text = new_page.locator("body").inner_text()
 
-                        for t in raw_texts:
-                            clean_t = t.strip()
-                            if len(clean_t) > 3 and not any(junk in clean_t for junk in junk_filters):
-                                # Avoid duplicating lines
-                                if clean_t not in clean_texts:
-                                    clean_texts.append(clean_t)
+                        # --- Registration Fee ---
+                        fee_match = re.search(
+                            r"(?:registration\s*fee|entry\s*fee)[^:\r\n]*[:\-]?\s*([^\r\n]{1,80})"
+                            r"|(?:free\s*(?:of\s*cost|registration|entry))"
+                            r"|(?:no\s*(?:registration\s*)?fee)",
+                            page_text, re.IGNORECASE
+                        )
+                        fee_text = fee_match.group(0).strip() if fee_match else None
 
-                        # Join everything with double newlines so it looks like a clean document
-                        full_text = "\n\n".join(clean_texts)
+                        # --- Team Size ---
+                        team_match = re.search(
+                            r"team\s*(?:size|of)[^:\r\n]*[:\-]?\s*(\d+\s*(?:to|-)\s*\d+|\d+)"
+                            r"|(\d+)\s*(?:to|-)\s*(\d+)\s*members?"
+                            r"|(\d+)\s*members?\s*per\s*team",
+                            page_text, re.IGNORECASE
+                        )
+                        team_text = team_match.group(0).strip() if team_match else None
+
+                        # Build a compact description from just these two fields
+                        details = []
+                        if fee_text:
+                            details.append(f"Registration Fee: {fee_text}")
+                        if team_text:
+                            details.append(f"Team Size: {team_text}")
+
+                        if details:
+                            print(f"     [+] Fee='{fee_text}'  Team='{team_text}'")
                         
-                        if len(full_text) > 50:
-                            event_data["description"] = full_text
-                            print("     [+] Extracted Event Details, Dates, and Fees.")
-                        else:
-                            event_data["description"] = f"{fest_name} is a {fest_type} event happening on {start_date} at {location}."
+                        event_data["description"] = page_text
                         
                         new_page.close()
                         time.sleep(0.5)

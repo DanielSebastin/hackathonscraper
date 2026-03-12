@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from models.embedding_model import SearchQuery
 from api.search_service import process_search
 import json, os
@@ -49,6 +49,54 @@ def browse_events(
         }
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Event database not found. Run the uploader first.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/explore")
+def explore_events(
+    limit: int = Query(default=9, le=50),
+    page: int = Query(default=1, ge=1),
+):
+    """
+    Returns a stable, paginated list of all hackathons.
+    """
+    try:
+        from database.qdrant_db import get_all_points
+        
+        # 1. Fetch points (capped at 500 for performance, enough for "max no" currently)
+        all_hits = get_all_points(limit=500)
+        
+        # 2. Extract payload and score
+        results = []
+        for hit in all_hits:
+            payload = hit.payload
+            results.append({
+                "title": payload.get("title"),
+                "date": payload.get("date"),
+                "location": payload.get("location"),
+                "fee": payload.get("fee"),
+                "prize": payload.get("prize"),
+                "registration_url": payload.get("registration_url"),
+                "visit_url": payload.get("visit_url"),
+                "domains": payload.get("domains", []),
+                "description": payload.get("clean_description"),
+                "score": 1.0
+            })
+
+        # 3. Paginate (Stable order without shuffle)
+        total = len(results)
+        start = (page - 1) * limit
+        end = start + limit
+        paginated_results = results[start:end]
+        
+        return {
+            "status": "success",
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "results": paginated_results,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

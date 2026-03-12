@@ -56,6 +56,8 @@ def start_scheduler(background: bool = False):
     SchedulerClass = BackgroundScheduler if background else BlockingScheduler
     scheduler = SchedulerClass()
 
+    import datetime
+    
     # Schedule recurring job
     scheduler.add_job(
         run_pipeline,
@@ -64,13 +66,10 @@ def start_scheduler(background: bool = False):
         id="data_pipeline",
         name="Hackathon Data Refresh",
         replace_existing=True,
+        next_run_time=datetime.datetime.now() # Runs immediately, then every INTERVAL_HOURS
     )
 
     log.info(f"Scheduler started. Pipeline runs every {INTERVAL_HOURS} hours.")
-
-    if not background:
-        # Run once immediately on startup so data is fresh
-        run_pipeline()
 
     scheduler.start()
     return scheduler

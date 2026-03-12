@@ -22,7 +22,7 @@ load_dotenv()
 log = logging.getLogger("llm_service")
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-LLM_MODEL = os.getenv("LLM_MODEL", "mistral")
+LLM_MODEL = os.getenv("LLM_MODEL", "qwen2.5-coder:7b")
 
 EXTRACT_SYSTEM_PROMPT = (
     "You are a data parser. Your only job is to extract structured fields "
@@ -203,4 +203,101 @@ def structure_scraped_hackathon(raw_text: str) -> dict | None:
 
     except Exception as e:
         log.error("structure_scraped_hackathon failed: %s", e)
+        return None
+
+
+# ── Prompt templates for enrich_event_for_qdrant ────────────────
+
+_ENRICH_SYSTEM = (
+    "You are a precise data extraction engine for hackathon events. "
+    "You output ONLY valid JSON — no markdown, no explanation, no extra text whatsoever."
+)
+
+_ENRICH_TEMPLATE = """\
+You will receive raw details about a hackathon event.
+Your job is to extract and return a JSON object with EXACTLY these nine keys:
+
+{{
+  "title":            "<full official name of the event>",
+  "date":             "<event start date in human-readable form, e.g. '12 Mar 2025', or null>",
+  "location":         "<city, venue, or 'Online' — or null if unknown>",
+  "fee":              "<registration fee as a plain string, e.g. '₹500 per team' or 'Free' — or null>",
+  "prize":            "<prize/reward as a plain string, e.g. '₹1,00,000 cash prize' — or null>",
+  "registration_url": "<direct registration/website URL — or null>",
+  "clean_description":"<a clean, plain-text 2-3 sentence summary of the event details — or null>",
+  "domains":          ["<List of domains, tags, or themes (e.g. AI, Web3, IoT) — or empty array>"],
+  "problem_statements":["<List of problem statements or tracks — or empty array>"]
+}}
+
+Rules:
+- Strip all UI noise: match percentages, nav labels, button text, social-media handles.
+- fee and prize should be concise, human-readable strings.
+- If a field cannot be determined, set its value to null (not the string "null"). For lists, use [].
+- Output ONLY the JSON object, nothing else.
+
+Raw event data:
+\"\"\"
+Title    : {title}
+Date     : {date}
+Location : {location}
+Reg URL  : {registration_url}
+Details  : {description}
+\"\"\"
+"""
+
+
+def enrich_event_for_qdrant(raw_event: dict) -> dict | None:
+    """
+    Passes raw scraped event data to Ollama Mistral and returns a clean,
+    structured dict with exactly:
+        title, date, location, fee, prize, registration_url, clean_description
+
+    Returns None if Ollama is unreachable, times out, or returns invalid JSON.
+    Callers should fall back to regex-parsed values in that case.
+    """
+    prompt = _ENRICH_TEMPLATE.format(
+        title=raw_event.get("title", ""),
+        date=raw_event.get("date", ""),
+        location=raw_event.get("location", ""),
+        registration_url=raw_event.get("registration_url", ""),
+        description=raw_event.get("description", ""),
+    )
+
+    request_body = {
+        "model": LLM_MODEL,
+        "prompt": prompt,
+        "system": _ENRICH_SYSTEM,
+        "stream": False,
+    }
+
+    try:
+        response = requests.post(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            json=request_body,
+            timeout=90,
+        )
+        response.raise_for_status()
+
+        raw_output = response.json().get("response", "").strip()
+
+        # Strip markdown fences if the model wraps in ```json ... ```
+        if raw_output.startswith("```"):
+            parts = raw_output.split("```")
+            raw_output = parts[1] if len(parts) >= 2 else raw_output
+            if raw_output.lower().startswith("json"):
+                raw_output = raw_output[4:].strip()
+
+        return json.loads(raw_output)
+
+    except json.JSONDecodeError as je:
+        log.warning("enrich_event_for_qdrant: invalid JSON from LLM (%s)", je)
+        return None
+    except requests.exceptions.ConnectionError:
+        log.warning("Ollama not running at %s — skipping enrichment.", OLLAMA_BASE_URL)
+        return None
+    except requests.exceptions.Timeout:
+        log.warning("Ollama timed out — skipping enrichment.")
+        return None
+    except Exception as e:
+        log.error("enrich_event_for_qdrant failed: %s", e)
         return None

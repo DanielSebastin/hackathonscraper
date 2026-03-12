@@ -121,7 +121,36 @@ def extract_problem_statements(description: str) -> list[str]:
             if len(statements) >= 5: break
             
     return statements
+def extract_short_summary(description: str) -> str:
+    """
+    Creates a concise 1-2 sentence summary from the massive description block
+    specifically for the frontend UI cards.
+    """
+    if not description:
+        return ""
 
+    # Remove the massive block of newlines and extra spaces
+    clean_desc = re.sub(r'\s+', ' ', description).strip()
+
+    # Split the text into sentences (looking for periods followed by spaces)
+    sentences = re.split(r'(?<=[.!?]) +', clean_desc)
+
+    # Grab the first 2 meaningful sentences
+    summary_sentences = []
+    for sentence in sentences:
+        # Skip weird short fragments or isolated contact numbers
+        if len(sentence) > 25 and not re.match(r'^[\d\-\+]+$', sentence):
+            summary_sentences.append(sentence)
+        if len(summary_sentences) == 2:
+            break
+            
+    summary = " ".join(summary_sentences)
+    
+    # Final fallback: Hard truncate if it's still wildly long (e.g. over 200 chars)
+    if len(summary) > 200:
+        return summary[:197] + "..."
+        
+    return summary
 
 def extract_team_size(description: str) -> str | None:
     """
@@ -152,7 +181,11 @@ def parse_event(raw_event: dict) -> dict:
         "type": raw_event.get("type", "").strip(),
         "location": raw_event.get("location", "").strip(),
         "registration_url": raw_event.get("registration_url"),
-        "description": description,
+        "visit_url": raw_event.get("visit_url"),
+        
+        "description": description, # KEEP THIS: The Vector DB needs it for good search results
+        "short_summary": extract_short_summary(description), # NEW: Send THIS to your frontend UI
+        
         # Extracted enrichment fields
         "prize": extract_prize(description),
         "fee": extract_fee(description),
